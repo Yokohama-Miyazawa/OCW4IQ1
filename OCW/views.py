@@ -1,25 +1,103 @@
 from django.shortcuts import render
-from django.core import serializers
-# from . models import feed
-import json
+from django.http.response import HttpResponse
+import pymysql
+
+
+def db_connect():
+    return pymysql.connect(host='localhost',
+                           user='root',
+                           password='',
+                           db='test_ocw',
+                           charset='utf8',
+                           # Selectの結果をdictionary形式で受け取る
+                           cursorclass=pymysql.cursors.DictCursor)
+
+
 # Create your views here.
+def test_response(request):
+    return HttpResponse("OCW4IQ1")
 
 
-def index(request):
-    template = 'OCW/index.html'
-    # results = feed.objects.all()
-    results = "これは仮文字列です．IQ1"
-    context = {
-        'results': results,
+def toppage(request):
+    d = {'default_input_value': '授業名'}
+    return render(request, 'OCW/topPage.html', d)
+
+
+def search_and_result(request):
+    # テーブルヘッダ
+    result_head = {'quarter': 'クォーター', 'lecname': '講義名', 'teacher': '教員名'}
+
+    # リクエストから取れる情報
+    lecname = request.GET.get("lectureName")    # 講義名
+
+
+    # リクエストに応じてDBから情報を取得
+    # TODO
+
+    content = [('1Q', '講義名1', '教員名3', 'lecture'), ('2Q', '講義名2', '教員名2', 'lecture'), ('1Q', '講義名3', '教員名3', 'lecture')]
+    result_content = []
+
+    # SQL kakeru baai
+    with db_connect().cursor() as cursor:
+        sql = "SELECT Quater,LectureName,Professor FROM lecture WHERE LectureName like '%{}%'".format(lecname)
+        cursor.execute(sql)
+        dbdata = cursor.fetchall()
+        for row in dbdata:
+            content.append((row["Quater"], row["LectureName"], row["Professor"]))
+
+    for item in content:
+        result_content.append({'quarter': item[0], 'lecname': item[1], 'teacher': item[2]})
+
+    d = {
+        'result_head': result_head,
+        'result_content': result_content,
+        'lectureName': lecname,
     }
-    return render(request, template, context)
+    return render(request, 'OCW/searchAndResult.html', d)
 
 
-def getdata(request):
-    # results = feed.objects.all()
-    results = "これは仮文字列です．IQ1"
-    jsondata = serializers.serialize('json', results)
-    return HttpResponse(jsondata)
+def lecture(request):
+    # クエリから得られる情報
+    lecname = request.GET.get("lecname")    # 講義名
+
+    # 情報からのデータ構築
+    d = {}
+    with db_connect().cursor() as cursor:
+        sql = "SELECT * FROM lecture WHERE LectureName like '{}'".format(lecname)
+        cursor.execute(sql)
+        dbdata = cursor.fetchall()
+        d = dbdata[0]
+
+    return render(request, 'OCW/lecture.html', d)
+
+
+def department_page(request):
+    print(request)
+    request_param = request.GET.get('dep')
+
+    def param2name(param):
+        if param == "rigakuin":
+            return "理学院"
+        elif param == "kougakuin":
+            return "工学院"
+        elif param == "bussitsu":
+            return "物質理工学院"
+        elif param == "jouhou":
+            return "情報理工学院"
+        elif param == "seimei":
+            return "生命理工学院"
+        elif param == "kankyo":
+            return "環境・社会理工学院"
+        elif param == "sonota":
+            return "その他"
+
+    department_name = param2name(request_param)
+
+    d = {
+        'department_name': department_name,
+        }
+    print(d)
+    return render(request, 'OCW/department.html', d)
 
 
 def base_layout(request):
